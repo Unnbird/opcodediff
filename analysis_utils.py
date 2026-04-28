@@ -37,7 +37,9 @@ def packet_handler_sig(sem_ver: str) -> str:
         return "48 89 ? 24 ? ? 48 83 EC 50 8B F2 49 8B"
 
 
-def get_packet_handler_addr(r2, exe_file: str) -> str:
+def get_packet_handler_addr(
+    r2, exe_file: str, addr: str | None = None, sig: str | None = None
+) -> str:
     """Get the address for the Client::Network::PacketDispatcher_OnReceivePacket
     for Zone packets.
 
@@ -48,13 +50,19 @@ def get_packet_handler_addr(r2, exe_file: str) -> str:
     Returns:
         str: The hex address of the packet dispatch handler.
     """
+    if addr is not None:
+        return addr
+
     sem_ver = get_sem_ver(exe_file)
-    p = create_r2_byte_pattern(packet_handler_sig(sem_ver))
+    p = create_r2_byte_pattern(sig or packet_handler_sig(sem_ver))
+    print(f"Looking for packet handler with pattern: {p}")
     result = r2.cmd(f"/x {p}").split()  # Find byte pattern
     if len(result) == 0:
         raise ValueError(
             "Could not find packet handler address. This could be "
-            "because of an incorrect signature or a transient Radare failure."
+            "because of an incorrect signature or a transient Radare failure. "
+            "For non-Global clients, pass --packet-handler-addr or "
+            "--packet-handler-sig."
         )
     return result[0]
 
@@ -76,7 +84,9 @@ def packet_handler_switch_sig(sem_ver: str) -> str:
         return "48 89 ? 24 ? ? 48 83 EC 50 8B F2 49 8B"
 
 
-def get_packet_handler_switch_addr(r2, exe_file: str) -> str:
+def get_packet_handler_switch_addr(
+    r2, exe_file: str, addr: str | None = None, sig: str | None = None
+) -> str:
     """Gets the address of the approximate position where the zone packet
     handler switch is located.
 
@@ -87,13 +97,18 @@ def get_packet_handler_switch_addr(r2, exe_file: str) -> str:
     Returns:
         str: The hex address that can be used to find the opcode offset.
     """
+    if addr is not None:
+        return addr
+
     sem_ver = get_sem_ver(exe_file)
-    p = create_r2_byte_pattern(packet_handler_switch_sig(sem_ver))
+    p = create_r2_byte_pattern(sig or packet_handler_switch_sig(sem_ver))
     result = r2.cmd(f"/x {p}").split()  # Find byte pattern
     if len(result) == 0:
         raise ValueError(
             "Could not find packet handler switch address. This could be "
-            "because of an incorrect signature or a transient Radare failure."
+            "because of an incorrect signature or a transient Radare failure. "
+            "For non-Global clients, pass --packet-handler-switch-addr or "
+            "--packet-handler-switch-sig."
         )
     return result[0]
 
@@ -118,7 +133,12 @@ def _get_opcode_offset_pre_72(r2):
     return regs["rdx"] - regs["rax"]
 
 
-def get_packet_handler_opcode_offset(r2, exe_file: str):
+def get_packet_handler_opcode_offset(
+    r2,
+    exe_file: str,
+    switch_addr: str | None = None,
+    switch_sig: str | None = None,
+):
     """Gets the offset that maps the actual opcode to a switch case in the
     zone packet handler.
 
@@ -129,7 +149,9 @@ def get_packet_handler_opcode_offset(r2, exe_file: str):
     sem_ver = get_sem_ver(exe_file)
     # The opcode offset can be found somewhere right before the packet handler
     # switch
-    opcode_offset_target = get_packet_handler_switch_addr(r2, exe_file)
+    opcode_offset_target = get_packet_handler_switch_addr(
+        r2, exe_file, addr=switch_addr, sig=switch_sig
+    )
 
     orig_loc = r2.cmd("s")  # Save original spot
     r2.cmd(f"s {opcode_offset_target}")

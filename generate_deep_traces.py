@@ -132,7 +132,13 @@ def generate_opcodes_db(r2, switch, opcode_offset, fn_graph):
     return opcodes_db, blocks
 
 
-def extract_opcode_data(exe_file):
+def extract_opcode_data(
+    exe_file,
+    packet_handler_addr=None,
+    packet_handler_sig=None,
+    packet_handler_switch_addr=None,
+    packet_handler_switch_sig=None,
+):
     from utils import eprint, sync_r2_output
 
     import r2pipe
@@ -142,7 +148,9 @@ def extract_opcode_data(exe_file):
 
     sync_r2_output(r2)
 
-    target = get_packet_handler_addr(r2, exe_file)
+    target = get_packet_handler_addr(
+        r2, exe_file, addr=packet_handler_addr, sig=packet_handler_sig
+    )
     r2.cmd(f"s {target}")  # Seek to target
 
     ## STEP 1: Grab switch cases
@@ -153,7 +161,12 @@ def extract_opcode_data(exe_file):
     eprint(f"  Loaded switch cases")
 
     ## STEP 2: Get opcode offset
-    opcode_offset = get_packet_handler_opcode_offset(r2, exe_file)
+    opcode_offset = get_packet_handler_opcode_offset(
+        r2,
+        exe_file,
+        switch_addr=packet_handler_switch_addr,
+        switch_sig=packet_handler_switch_sig,
+    )
     eprint(f"  Found opcode offset: {opcode_offset}")
 
     r2.cmd(f"s {target}")  # Seek to original target
@@ -162,7 +175,12 @@ def extract_opcode_data(exe_file):
     fn_graph = r2.cmdj(f"pdrj")
 
     ## STEP 4: Process data
-    packet_handler_ea = get_packet_handler_switch_addr(r2, exe_file)
+    packet_handler_ea = get_packet_handler_switch_addr(
+        r2,
+        exe_file,
+        addr=packet_handler_switch_addr,
+        sig=packet_handler_switch_sig,
+    )
     switch_ea, packet_handler_switch = get_correct_switch(
         packet_handler_ea, switch_cases
     )
@@ -215,7 +233,24 @@ def trace_lines(blocks, ref):
     "exe_file", type=click.Path(exists=True, dir_okay=False, resolve_path=True)
 )
 @click.argument("output_dir", type=click.Path(file_okay=False))
-def generate_deep_traces(exe_file, output_dir):
+@click.option("--packet-handler-addr", help="Packet handler address, such as 0x140123456.")
+@click.option("--packet-handler-sig", help="Packet handler byte signature using ? wildcards.")
+@click.option(
+    "--packet-handler-switch-addr",
+    help="Address near the packet handler switch, such as 0x140123abc.",
+)
+@click.option(
+    "--packet-handler-switch-sig",
+    help="Byte signature near the packet handler switch using ? wildcards.",
+)
+def generate_deep_traces(
+    exe_file,
+    output_dir,
+    packet_handler_addr,
+    packet_handler_sig,
+    packet_handler_switch_addr,
+    packet_handler_switch_sig,
+):
     """
     Generates deep traces for every packet handler in the target EXE_FILE.
     This outputs an ASM trace as an .asm file for each pointer opcode.
@@ -230,7 +265,13 @@ def generate_deep_traces(exe_file, output_dir):
 
     python generate_deep_traces.py ffxiv_dx11.6.28h.exe 6.28h-traces
     """
-    opcodes_db, blocks = extract_opcode_data(exe_file)
+    opcodes_db, blocks = extract_opcode_data(
+        exe_file,
+        packet_handler_addr=packet_handler_addr,
+        packet_handler_sig=packet_handler_sig,
+        packet_handler_switch_addr=packet_handler_switch_addr,
+        packet_handler_switch_sig=packet_handler_switch_sig,
+    )
 
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 

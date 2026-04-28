@@ -87,6 +87,20 @@ python generate_similarity_matrix.py 6.58h-traces 7.00-traces 7.00.similarity.js
 python vtable_alignment.py ffxiv_dx11.6.58h.exe ffxiv_dx11.7.00.exe 7.00.similarity.json > 7.00.diff.json
 ```
 
+For non-Global clients, such as TC clients, the built-in byte signatures may
+not match the executable. In that case, find the packet handler and switch in
+your disassembler and pass their addresses directly:
+
+```sh
+python generate_deep_traces.py --packet-handler-addr 0x140123456 --packet-handler-switch-addr 0x140123abc ffxiv_dx11.7.10.exe 7.10-traces
+```
+
+You can also pass replacement byte signatures instead:
+
+```sh
+python generate_deep_traces.py --packet-handler-sig "40 55 53 ? ?" --packet-handler-switch-sig "E8 ? ? ? ? 41 83" ffxiv_dx11.7.10.exe 7.10-traces
+```
+
 ### Post-diff processing
 ```sh
 python generate_opcodes_file.py 6.58h 7.00 7.00.diff.json Ipcs.6.58h.h
